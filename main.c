@@ -161,6 +161,108 @@ int syscalls()
     fprintf(stderr, "=> filtering syscalls...");
     if (!(ctx = seccomp_init(SCMP_ACT_ALLOW))
         || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(chmod), 1, SCMP_A1(SCMP_CMP_MASKED_EQ, S_ISUID, S_ISUID))
-        || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(chmod), 1, SCMP_A1(SCMP_CMP_MASKED_EQm S_ISGID, S_ISGID))
-        )
+        || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(chmod), 1, SCMP_A1(SCMP_CMP_MASKED_EQ, S_ISGID, S_ISGID))
+        || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(fchmod), 1, SCMP_A1(SCMP_CMP_MASKED_EQ, S_ISUID, S_ISUID))
+        || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(fchmod), 1, SCMP_A1(SCMP_CMP_MASKED_EQ, S_ISGID, S_ISGID))
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(fchmodat), 1, SCMP_A2(SCMP_CMP_MASKED_EQ, S_ISUID, S_ISUID))
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(fchmodat), 1, SCMP_A2(SCMP_CMP_MASKED_EQ, S_ISGID, S_ISGID))
+        || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(unshare), 1, SCMP_A0(SCMP_CMP_MASKED_EQ,  CLONE_NEWUSER, CLONE_NEWUSER))
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(clone), 1, SCMP_A0(SCMP_CMP_MASKED_EQ, CLONE_NEWUSER, CLONE_NEWUSER))
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(ioctl), 1, SCMP_A1(SCMP_CMP_MASKED_EQ, TIOCSTI, TIOCSTI))
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(keyctl), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(add_key), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(request_key), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(ptrace), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(mbind), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(migrate_pages), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(move_pages), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(set_mempolicy), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(userfaultfd), 0)
+	    || seccomp_rule_add(ctx, SCMP_FAIL, SCMP_SYS(perf_event_open), 0)
+	    || seccomp_attr_set(ctx, SCMP_FLTATR_CTL_NNP, 0)
+	    || seccomp_load(ctx)) {
+        if (ctx) seccomp_release(ctx);
+        fprintf(stderr, "failed: %m\n");
+        return 1;
+    }
+    seccomp_release(ctx);
+    fprintf(stderr, "done.\n");
+    return 0;
+}
+
+#define MEMORY "1073741824"
+#define SHARES "256"
+#define PIDS "64"
+#define WEIGHT "10"
+#define FD_COUNT 64
+
+struct cgrp_control {
+    char control[256];
+    struct cgrp_setting {
+        char name[256];
+        char value[256];
+    } **settings;
+};
+struct cgrp_setting add_to_tasks = {
+    .name = "tasks",
+    .value = "0"
+};
+
+struct cgrp_control *cgrps[] = {
+    & (struct cgrp_control) {
+        .control = "memory",
+        .settings = (struct cgrp_setting *[]) {
+            & (struct cgrp_setting) {
+                .name = "memory.limit_in_bytes",
+                .value = MEMORY
+            },
+            & (struct cgrp_setting) {
+                .name = "memory.kmem.limit_in_byte",
+                .value = MEMORY
+            },
+            &add_to_tasks,
+            NULL
+        }
+    },
+    & (struct cgrp_control) {
+        .control = "cpu",
+        .settings = (struct cgrp_setting *[]) {
+            & (struct cgrp_setting) {
+                .name = "cpu.shares",
+                .value = SHARES
+            },
+            &add_to_tasks,
+            NULL
+        }
+    },
+    & (struct cgrp_control) {
+        .control = "pids",
+        .settings = (struct cgrp_setting *[]) {
+            & (struct cgrp_setting) {
+                .name = "pids.max",
+                .value = PIDS
+            },
+            &add_to_tasks,
+            NULL
+        }
+    },
+    & (struct cgrp_control) {
+        .control = "blkio",
+        .settings = (struct cgrp_setting *[]) {
+            & (struct cgrp_setting) {
+                .name = "blkio.weight",
+                .value = PIDS
+            },
+            &add_to_tasks,
+            NULL
+        }
+    },
+    NULL
+};
+int resources(struct child_config *config)
+{
+    fprintf(stderr, "=> setting cgroups...");
+    for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
+        
+    }
 }
