@@ -420,6 +420,17 @@ int child(void *arg)
         return -1;
     }
     if (close(config->fd)) {
-        fprintf
+        fprintf(stderr, "close failed: %m\n");
+        return -1;
     }
+    if (execve(config->argv[0], config->argv, NULL)) {
+        fprintf(stderr, "execve failed! %m.\n");
+        return -1;
+    }
+    return 0;
+}
+
+int choose_hostname(char *buff, size_t len)
+{
+    static const char *suits[] = { "swords" }
 }
