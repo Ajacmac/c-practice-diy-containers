@@ -263,6 +263,35 @@ int resources(struct child_config *config)
 {
     fprintf(stderr, "=> setting cgroups...");
     for (struct cgrp_control **cgrp = cgrps; *cgrp; cgrp++) {
-        
+        char dir[PATH_MAX] = {0};
+        fprintf(stderr, "%s...", (*cgrp)->control);
+        if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s", 
+                (*cgrp)->control, config->hostname) == -1) {
+            return -1;
+        }
+        if (mkdir(dir, S_IRUSR | S_IWUSR | S_IXUSR)) {
+            fprintf(stderr, "mkdir %s failed: %m\n", dir);
+            return -1;
+        }
+        for (struct cgrp_setting **setting = (*cgrp)->setting; *setting; setting++) {
+            char path[PATH_MAX] = {0};
+            int fd = 0;
+            if (snprintf(path, sizeof(path), "%s/%s", dir, (*setting)->name) == -1) {
+                fprintf(stderr, "snprintf failed: %m\n");
+                return -1;
+            }
+            if ((fd = open(path, 0_WRONLY)) == -1) {
+                fprintf(stderr, "opening %s failed: %m\n", path);
+                return -1;
+            }
+            if (write(fd, (*setting)->value, strlen((*setting)->value)) == -1) {
+                fprintf(stderr, "writing to %s failed: %m\n", path);
+                close(fd);
+                return -1;
+            }
+            close(fd);
+        }
     }
+    fprintf(stderr, "done.\n");
+    fprintf(stderr, "=>")
 }
