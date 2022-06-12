@@ -338,3 +338,88 @@ int free_resources(struct child_config *config)
     fprintf(stderr, "done.\n");
     return 0;
 }
+
+#define USERNS_OFFSET 10000
+#define USERNS_COUNT 2000
+
+int handle_child_uid_map (pid_t child_pid, int fd)
+{
+    int uid_map = 0;
+    int has_userns = -1;
+    if (read(fd, &has_userns, sizeof(has_userns)) != sizeof(has_userns)) {
+        fprintf(stderr, "couldn't read from child!\n");
+        return -1;
+    }
+    if (has_userns) {
+        char path[PATH_MAX] = {0};
+        for (char **file = (char *[]) { "uid_map", "gid_map", 0 }; *file; file++) {
+            if (snprintf(path, sizeof(path), "/proc/%d/%s", child_pid, *file)
+                > sizeof(path)) {
+                fprintf(stderr, "snprintf too big? %m\n");
+                return -1;
+            }
+            fprintf(stderr, "writing %s...", path);
+            if ((uid_map = open(path, O_WRONLY)) == -1) {
+                fprintf(stderr, "open failed: %m\n");
+                return -1;
+            }
+            if (dprintf(uid_map, "0 %d %d\n", USERNS_OFFSET, USERNS_COUNT) == -1) {
+                fprintf(stderr, "dprintf failed: %m\n");
+                close(uid_map);
+                return -1;
+            }
+            close(uid_map);
+        }
+    }
+    if (write(fd, & (int) { 0 }, sizeof(int)) != sizeof(int)) {
+        fprintf(stderr, "couldn't write: %m\n");
+        return -1;
+    }
+    return 0;
+}
+
+int userns(struct child_config *config)
+{
+    fprintf(stderr, "=> trying a user namespace...");
+    int has_userns = !unshare(CLONE_NEWUSER);
+    if (write(config->fd, &has_userns, sizeof(has_userns)) != sizeof(has_userns)) {
+        fprintf(stderr, "couldn't write: %m\n");
+        return -1;
+    }
+    int result = 0;
+    if (read(config->fd, &result, sizeof(result)) != sizeof(result)) {
+        fprintf(stderr, "couldn't read: %m\n");
+        return -1;
+    }
+    if (result) return -1;
+    if (has_userns) {
+        fprintf(stderr, "done.\n");
+    } else {
+        fprintf(stderr, "unsupported? continuing.\n");
+    }
+    fprintf(stderr, "=> switching to uid %d / gid %d..." config->uid, config->uid);
+    if (setgroups(1, & (gid_t) { config->uid }) ||
+        setresgid(config->uid, config->uid, config->uid) ||
+        setresuid(config->uid, config->uid, config->uid)) {
+        fprintf(stderr, "%m\n");
+        return -1;
+    }
+    fprintf(stderr, "done.\n");
+    return 0;
+}
+
+int child(void *arg)
+{
+    struct child_config *config = arg;
+    if (sethostname(config->hostname, strlen(config->hostname))
+        || mounts(config)
+        || userns(config)
+        || capabilities()
+        || syscalls()) {
+        close(config->fd);
+        return -1;
+    }
+    if (close(config->fd)) {
+        fprintf
+    }
+}
