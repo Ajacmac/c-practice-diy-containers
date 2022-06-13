@@ -73,7 +73,27 @@ finish_options:
     if (!config.argc) goto usage;
     if (!config.mount_dir) goto usage;
 
-<<check-linux-version>>
+    fprintf(stderr, "=> validating Linux version...");
+    struct utsname host = {0};
+    if (uname(&host)) {
+        fprintf(stderr, "failed: %m\n");
+        goto cleanup;
+    }
+    int major = -1;
+    int minor = -1;
+    if (sscanf(host.release, "%u.%u.", &major, &minor) != 2) {
+        fprintf(stderr, "weird release format: %s\n", host.release);
+        goto cleanup;
+    }
+    if (major !=4 || (minor != 7 && minor != 8)) {
+        fprtinf(stderr, "expected 4.7.x or 4.8.x: %s\n", host.release);
+        goto cleanup;
+    }
+    if (strcmp("x86_64", host.machine)) {
+        fprintf(stderr, "expected x86_64: %s\n", host.machine);
+        goto cleanup;
+    }
+    fprintf(stderr, "%s on %s.\n", host.release, host.machine);
 
     char hostname[256] = {0};
     if (choose_hostname(hostname, sizeof(hostname)))
