@@ -41,7 +41,34 @@ struct child_config {
 
 <<child>>
 
-<<choose-hostname>>
+int choose_hostname(char *buff, size_t len)
+{
+    static const char *suits[] = { "swords", "wands", "pentacles", "cups" };
+    static const char *minor[] = {
+        "ace", "two", "three", "four", "five", "six", "seven", "eight",
+        "nine", "ten", "page", "knight", "queen", "king"
+    };
+    static const char *major[] = {
+        "fool", "magician", "high-priestess", "empress", "emperor",
+		"hierophant", "lovers", "chariot", "strength", "hermit",
+		"wheel", "justice", "hanged-man", "death", "temperance",
+		"devil", "tower", "star", "moon", "sun", "judgment", "world"
+    };
+    struct timespec now = {0};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    size_t ix = now.tv_nsec % 78;
+    if (ix < sizeof(major) / sizeof(minor)) {
+        snprintf(buff, len, "%05lx-%s", now.tv_sec, major[ix]);
+    } else {
+        ix -= sizeof(major) / sizeof(*major);
+        snprintf(buff, len,
+            "%05lxc-%s-of-%s",
+            now.tv_sec,
+            minor[ix % (sizeof(minor) / sizeof(*minor))],
+            suits[ix / (sizeof(minor) / sizeof(*minor))]);
+    }
+    return 0;
+}
 
 int main (int argc, char **argv) {
     struct child_config config = {0};
