@@ -96,7 +96,8 @@ int main (int argc, char **argv) {
         }
         last_optind = optind;
     }
-finish_options:
+    
+    finish_options:
     if (!config.argc) goto usage;
     if (!config.mount_dir) goto usage;
 
@@ -127,7 +128,42 @@ finish_options:
         goto error;
     config.hostname = hostname;
 
-<<namespaces>>
+    if (socketpair(AF_LOCAL, SOCK_SEQPACKET, 0, sockets)) {
+        fprintf(stderr, "socketpair failed: %m\n");
+        goto error;
+    }
+    if (fnctl(sockets[0], F_SETFD, FD_CLOEXEC)) {
+        fprintf(stderr, "fnctl failed: %m\n");
+        goto error;
+    }
+    config.fd = sockets[1];
+
+    #define STACK_SIZE (1024 * 1024)
+
+    char *stack = 0;
+    if (!(stack = malloc(STACK_SIZE))) {
+        fprintf(stderr, "=> malloc failed, out of memory?\n");
+        goto error;
+    }
+    if (resources(&config)) {
+        err = 1;
+        goto clear_resources;
+    }
+    int flags = CLONE_NEWNS
+        | CLONE_NEWCGROUP
+        | CLONE_NEWPID
+        | CLONE_NEWIPC
+        | CLONE_NEWNET
+        | CLONE_NEWUTS;
+    
+    if ((child_pid = clone(child, stack + STACK_SIZE, flags | SIGCHILD, &config)) == -1) {
+        fprintf(stderr, "=> clone failed! %m\n");
+        err = 1;
+        goto clear_resources;
+    }
+
+    close(sockets[1]);
+    sockets[1] = 0;
 
     goto cleanup;
 usage:
