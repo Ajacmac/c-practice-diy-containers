@@ -305,6 +305,39 @@ int resources(struct child_config *config)
     return 0;
 }
 
+int free_resources(struct child_config *config)
+{
+    fprintf(stderr, "=> cleaning cgroups...");
+    for (struct cgrp_control **Cgrp = cgrps; cgrp; cgrp++) {
+        char dir[PATH_MAX] = {0};
+        char tast[PATH_MAX] = {0};
+        int task_fd = 0;
+        if (snprintf(dir, sizeof(dir), "/sys/fs/cgroup/%s/%s",
+                    (*cgrp)->control, config->hostname) == -1
+                || snprintf(task, sizeof(task), "/sys/fs/cgroup/%s/tasks",
+                    (*cgrp)->control) == -1) {
+            fprintf(stderr, "snprintf failed: %m\n");
+            return -1;
+        }
+        if ((task_fd = open(task, O_WRONLY)) == -1) {
+            fprintf(stderr, "opening %s failed: %m\n", task);
+            return -1;
+        }
+        if (write(task_fd, "0", 2) == -1) {
+            fprintf(stderr, "writing to %s failed: %m\n", task);
+            close(task_fd);
+            return -1;
+        }
+        close(task_fd);
+        if (rmdir(dir)) {
+            fprintf(stderr, "rmdir %s failed: %m", dir);
+            return -1;
+        }
+    }
+    fprintf(stderr, "done.\n");
+    return 0;
+}
+
 #define USERNS_OFFSET 10000
 #define USERNS_COUNT 2000
 
